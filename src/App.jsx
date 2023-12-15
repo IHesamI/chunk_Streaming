@@ -42,39 +42,45 @@ function App() {
     return chunks;
   }
   async function handleClick(e) {
-    fetch("http://localhost:3000/getmsg", { method: "GET" })
-      // .then(res=>res.body)
-      .then((res) => {
-        const reader = res.body.getReader();
-        return new ReadableStream({
-          start(controller) {
-            return pump();
-            function pump() {
-              return reader.read().then(({ done, value }) => {
-                // When no more data needs to be consumed, close the stream
-                if (done) {
-                  controller.close();
-                  return;
-                }
-                // Enqueue the next data chunk into our target stream
-                controller.enqueue(value);
-                return pump();
-              });
-            }
-          },
-        });
-      })
-      // Create a new response out of the stream
-      .then((stream) => new Response(stream))
-      // Create an object URL for the response
-      .then((response) => response.blob())
-      .then((blob) => URL.createObjectURL(blob))
-      // Update image
-      .then((url) => {
-        setUrl(url)
-      });
+    const aborter = new AbortController();
+
+    const response = await fetch("http://localhost:3000/getmsg", {
+      method: "GET",
+      signal: aborter.signal,
+    });
+    let url ;
+    let res;
+    for await (const chunk of chunkStream(response.body)) {
+      // thebuffer=chunk;
+      res = new Response(chunk);
+      if (aborter.signal) {
+        break;
+      }
+    }
+    const blob = await res.blob();
+    console.error(blob);
+    url =URL.createObjectURL(blob);
+    setUrl(url);
+    
+    console.error("zarp namosan");
+    // .then(res=>res.body)
     // const buffer = await result.json();
     // console.error(buffer);
+  }
+  
+  async function* chunkStream(stream){
+    const reader = stream.getReader();
+    try{
+    while (true){
+      const {done,value}=await reader.read();
+      if (done) return;
+      // console.error(value);
+      yield value;
+    }
+    }
+    finally{
+      reader.releaseLock();
+    }
   }
   console.error(url);
 
